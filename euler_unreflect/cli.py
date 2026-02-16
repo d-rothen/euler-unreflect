@@ -12,7 +12,9 @@ from tqdm import tqdm
 
 from ds_crawler import DatasetWriter
 from euler_loading import Modality, MultiModalDataset
-from unreflectanything import inference, model as model_factory
+from unreflectanything._shared import download_configs, get_cache_dir
+from unreflectanything.inference_ import inference
+from unreflectanything.model_ import model as model_factory
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -90,11 +92,19 @@ def main(argv: list[str] | None = None) -> None:
         pin_memory=True,
     )
 
+    # Ensure config is available (downloaded from HuggingFace if missing)
+    config_dir = get_cache_dir("configs")
+    config_path = config_dir / "pretrained_config.yaml"
+    if not config_path.exists():
+        print("Downloading model config ...")
+        download_configs()
+
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
     mdl = model_factory(
         pretrained=True,
         weights_path=args.weights,
+        config_path=config_path,
         device=args.device,
         verbose=args.verbose,
     )
