@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from torchvision.transforms import functional as TF
+from tqdm import tqdm
 
 from ds_crawler import DatasetWriter
 from euler_loading import Modality, MultiModalDataset
@@ -106,8 +107,7 @@ def main(argv: list[str] | None = None) -> None:
         euler_train={"used_as": "target", "modality_type": "rgb"},
     )
 
-    processed = 0
-    for batch in loader:
+    for batch in tqdm(loader, desc="Inference", unit="batch"):
         rgb = batch["rgb"]             # (B, 3, H, W) float32 in [0, 1]
         full_ids = batch["full_id"]    # list of str
         file_ids = batch["id"]         # list of str
@@ -134,12 +134,8 @@ def main(argv: list[str] | None = None) -> None:
             img = TF.to_pil_image(diffuse[i].clamp(0.0, 1.0).cpu())
             img.save(out_path)
 
-        processed += diffuse.shape[0]
-        if args.verbose:
-            print(f"  Processed {processed}/{len(dataset)} samples")
-
     writer.save_index()
-    print(f"Done. {processed} images saved to {output_dir}")
+    print(f"Done. {len(writer)} images saved to {output_dir}")
 
 
 if __name__ == "__main__":
