@@ -12,68 +12,117 @@ from tqdm import tqdm
 
 from ds_crawler import DatasetWriter
 from euler_loading import Modality, MultiModalDataset
-from unreflectanything._shared import download_configs, get_cache_dir
+from unreflectanything._shared import (
+    DEFAULT_WEIGHTS_FILENAME,
+    download_configs,
+    download_weights,
+    get_cache_dir,
+)
 from unreflectanything.inference_ import inference
 from unreflectanything.model_ import model as model_factory
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Run UnReflectAnything diffuse inference on an euler-loading dataset.",
+        description="UnReflectAnything inference on euler-loading datasets.",
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="command")
+
+    # -- prepare --------------------------------------------------------
+    prep = subparsers.add_parser(
+        "prepare",
+        help="Download model weights and configs to a local directory.",
+    )
+    prep.add_argument(
+        "path",
+        type=str,
+        help="Directory to store weights/ and configs/ subdirectories.",
+    )
+
+    # -- infer (default) ------------------------------------------------
+    inf = subparsers.add_parser(
+        "infer",
+        help="Run diffuse inference on a dataset.",
+    )
+    inf.add_argument(
         "--source",
         type=str,
         required=True,
         help="Path to the source RGB modality directory (must be ds-crawler indexed).",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--output",
         type=str,
         required=True,
         help="Directory to save the output diffuse images.",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--weights",
         type=str,
         default=None,
         help="Path to model weights checkpoint. Uses cached default if omitted.",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--batch-size",
         type=int,
         default=4,
         help="Number of images per forward pass (default: 4).",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--brightness-threshold",
         type=float,
         default=0.8,
         help="Brightness threshold for highlight mask (0.0-1.0, default: 0.8).",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--device",
         type=str,
         default="cuda",
         help="Device to run inference on (default: cuda).",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--num-workers",
         type=int,
         default=4,
         help="Number of DataLoader workers (default: 4).",
     )
-    parser.add_argument(
+    inf.add_argument(
         "--verbose",
         action="store_true",
         help="Print progress information.",
     )
-    return parser.parse_args(argv)
+
+    return parser
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
+# -- prepare command ----------------------------------------------------
 
+def cmd_prepare(args: argparse.Namespace) -> None:
+    root = Path(args.path)
+    weights_dir = root / "weights"
+    configs_dir = root / "configs"
+
+    weights_file = weights_dir / DEFAULT_WEIGHTS_FILENAME
+    config_file = configs_dir / "pretrained_config.yaml"
+
+    if weights_file.exists():
+        print(f"Weights already present: {weights_file}")
+    else:
+        print(f"Downloading weights to {weights_dir} ...")
+        download_weights(output_dir=weights_dir)
+
+    if config_file.exists():
+        print(f"Config already present: {config_file}")
+    else:
+        print(f"Downloading configs to {configs_dir} ...")
+        download_configs(output_dir=configs_dir)
+
+    print(f"Done. Assets ready at {root}")
+
+
+# -- infer command ------------------------------------------------------
+
+def cmd_infer(args: argparse.Namespace) -> None:
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -92,12 +141,14 @@ def main(argv: list[str] | None = None) -> None:
         pin_memory=True,
     )
 
-    # Ensure config is available (downloaded from HuggingFace if missing)
+    # Resolve model config
     config_dir = get_cache_dir("configs")
     config_path = config_dir / "pretrained_config.yaml"
     if not config_path.exists():
-        print("Downloading model config ...")
-        download_configs()
+        raise FileNotFoundError(
+            f"Model config not found at {config_path}.\n"
+            f"Run 'euler-unreflect prepare <path>' on a machine with internet access first."
+        )
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
@@ -146,6 +197,20 @@ def main(argv: list[str] | None = None) -> None:
 
     writer.save_index()
     print(f"Done. {len(writer)} images saved to {output_dir}")
+
+
+# -- entry point --------------------------------------------------------
+
+def main(argv: list[str] | None = None) -> None:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
+
+    if args.command == "prepare":
+        cmd_prepare(args)
+    elif args.command == "infer":
+        cmd_infer(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":

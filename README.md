@@ -10,11 +10,27 @@ uv pip install "euler-unreflect @ git+https://github.com/d-rothen/euler-unreflec
 
 ## Usage
 
+### `prepare` — download model assets
+
+Downloads weights and configs to a local directory. Run this on a machine with internet access before running inference on offline cluster nodes.
+
 ```bash
-python -m euler_unreflect \
+euler-unreflect prepare /path/to/assets
+```
+
+This creates:
+- `<path>/weights/full_model_weights.pt`
+- `<path>/configs/pretrained_config.yaml`
+
+Files that already exist are skipped.
+
+### `infer` — run inference
+
+```bash
+euler-unreflect infer \
     --source /data/my_dataset/rgb \
     --output /data/my_dataset/diffuse \
-    --weights /path/to/weights.pt \
+    --weights /path/to/assets/weights/full_model_weights.pt \
     --batch-size 8 \
     --brightness-threshold 0.8
 ```
@@ -23,7 +39,7 @@ The `--source` directory must be a ds-crawler indexed modality (i.e. contain a `
 
 Output images are written in the same directory structure as the source, and a `.ds_crawler/output.json` index is generated so the output can be used directly as an euler-loading modality.
 
-## Arguments
+#### Arguments
 
 | Argument | Required | Default | Description |
 |---|---|---|---|
