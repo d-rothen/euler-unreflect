@@ -57,10 +57,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Directory to save the output diffuse images.",
     )
     inf.add_argument(
-        "--weights",
+        "--cache-dir",
         type=str,
         default=None,
-        help="Path to model weights checkpoint. Uses cached default if omitted.",
+        help="Directory containing weights/ and configs/ subdirectories (as created by 'prepare'). "
+             "Defaults to ~/.cache/unreflectanything.",
     )
     inf.add_argument(
         "--batch-size",
@@ -141,20 +142,27 @@ def cmd_infer(args: argparse.Namespace) -> None:
         pin_memory=True,
     )
 
-    # Resolve model config
-    config_dir = get_cache_dir("configs")
-    config_path = config_dir / "pretrained_config.yaml"
+    # Resolve cache directory (weights + configs)
+    cache_dir = Path(args.cache_dir) if args.cache_dir else get_cache_dir("")
+    weights_path = cache_dir / "weights" / DEFAULT_WEIGHTS_FILENAME
+    config_path = cache_dir / "configs" / "pretrained_config.yaml"
+
     if not config_path.exists():
         raise FileNotFoundError(
             f"Model config not found at {config_path}.\n"
-            f"Run 'euler-unreflect prepare <path>' on a machine with internet access first."
+            f"Run 'euler-unreflect prepare {cache_dir}' on a machine with internet access first."
+        )
+    if not weights_path.exists():
+        raise FileNotFoundError(
+            f"Model weights not found at {weights_path}.\n"
+            f"Run 'euler-unreflect prepare {cache_dir}' on a machine with internet access first."
         )
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
     mdl = model_factory(
         pretrained=True,
-        weights_path=args.weights,
+        weights_path=weights_path,
         config_path=config_path,
         device=args.device,
         verbose=args.verbose,
