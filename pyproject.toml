@@ -1,0 +1,17 @@
+[project]
+name = "euler-unreflect"
+version = "0.1.0"
+description = "CLI for running UnReflectAnything inference on euler-loading datasets."
+requires-python = ">=3.11"
+dependencies = [
+    "unreflectanything",
+    "euler-loading[gpu] @ git+https://github.com/d-rothen/euler-loading.git",
+    "tqdm",
+]
+
+[project.scripts]
+euler-unreflect = "euler_unreflect.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

@@ -5,8 +5,7 @@ CLI for running [UnReflectAnything](https://github.com/d-rothen/unreflectanythin
 ## Installation
 
 ```bash
-uv pip install "euler-loading[gpu] @ git+https://github.com/d-rothen/euler-loading.git"
-uv pip install "unreflectanything @ git+https://github.com/d-rothen/unreflectanything.git"
+uv pip install "euler-unreflect @ git+https://github.com/d-rothen/euler-unreflect.git"
 ```
 
 ## Usage
