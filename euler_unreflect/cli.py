@@ -184,11 +184,12 @@ def cmd_infer(args: argparse.Namespace) -> None:
             f"Run 'euler-unreflect prepare {cache_dir}' on a machine with internet access first."
         )
 
-    # Point HuggingFace at the local cache so the DINOv3 backbone loads offline
+    # Point HuggingFace at the local cache so the DINOv3 backbone loads offline,
+    # but only if the user hasn't already set HF_HOME themselves.
     hf_dir = cache_dir / "huggingface"
-    if hf_dir.is_dir():
+    if "HF_HOME" not in os.environ and hf_dir.is_dir():
         os.environ["HF_HOME"] = str(hf_dir)
-        os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
