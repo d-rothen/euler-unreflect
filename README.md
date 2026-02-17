@@ -21,6 +21,7 @@ euler-unreflect prepare /path/to/assets
 This creates:
 - `<path>/weights/full_model_weights.pt`
 - `<path>/configs/pretrained_config.yaml`
+- `<path>/huggingface/` — cached DINOv3 backbone (used internally by the model)
 
 Files that already exist are skipped.
 
@@ -45,7 +46,7 @@ Output images are written in the same directory structure as the source, and a `
 |---|---|---|---|
 | `--source` | yes | | Path to source RGB modality directory |
 | `--output` | yes | | Directory for output diffuse images |
-| `--cache-dir` | no | `~/.cache/unreflectanything` | Directory containing `weights/` and `configs/` (as created by `prepare`) |
+| `--cache-dir` | no | `~/.cache/unreflectanything` | Directory containing `weights/`, `configs/`, and `huggingface/` (as created by `prepare`) |
 | `--batch-size` | no | `4` | Images per forward pass |
 | `--brightness-threshold` | no | `0.8` | Highlight mask threshold (0.0 - 1.0) |
 | `--device` | no | `cuda` | Inference device (`cuda`, `cpu`) |

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 import torch
@@ -98,27 +99,52 @@ def _build_parser() -> argparse.ArgumentParser:
 
 # -- prepare command ----------------------------------------------------
 
+def _read_backbone_name(config_path: Path) -> str:
+    """Extract the HuggingFace backbone model name from the pretrained config YAML."""
+    import yaml
+
+    default = "facebook/dinov3-vits16-pretrain-lvd1689m"
+    if not config_path.exists():
+        return default
+    with config_path.open("r") as f:
+        cfg = yaml.safe_load(f) or {}
+    return cfg.get("RGB_ENCODER", {}).get("ENCODER", default)
+
+
 def cmd_prepare(args: argparse.Namespace) -> None:
     root = Path(args.path)
     weights_dir = root / "weights"
     configs_dir = root / "configs"
+    hf_dir = root / "huggingface"
 
     weights_file = weights_dir / DEFAULT_WEIGHTS_FILENAME
     config_file = configs_dir / "pretrained_config.yaml"
 
+    # 1. Unreflectanything weights
     if weights_file.exists():
         print(f"Weights already present: {weights_file}")
     else:
         print(f"Downloading weights to {weights_dir} ...")
         download_weights(output_dir=weights_dir)
 
+    # 2. Unreflectanything configs
     if config_file.exists():
         print(f"Config already present: {config_file}")
     else:
         print(f"Downloading configs to {configs_dir} ...")
         download_configs(output_dir=configs_dir)
 
-    print(f"Done. Assets ready at {root}")
+    # 3. DINOv3 backbone (used internally by transformers.AutoModel)
+    backbone_name = _read_backbone_name(config_file)
+    hf_dir.mkdir(parents=True, exist_ok=True)
+    os.environ["HF_HOME"] = str(hf_dir)
+    print(f"Downloading HuggingFace backbone '{backbone_name}' to {hf_dir} ...")
+    from transformers import AutoModel, AutoImageProcessor
+    AutoModel.from_pretrained(backbone_name)
+    AutoImageProcessor.from_pretrained(backbone_name)
+    print(f"Backbone cached in {hf_dir}")
+
+    print(f"Done. All assets ready at {root}")
 
 
 # -- infer command ------------------------------------------------------
@@ -157,6 +183,12 @@ def cmd_infer(args: argparse.Namespace) -> None:
             f"Model weights not found at {weights_path}.\n"
             f"Run 'euler-unreflect prepare {cache_dir}' on a machine with internet access first."
         )
+
+    # Point HuggingFace at the local cache so the DINOv3 backbone loads offline
+    hf_dir = cache_dir / "huggingface"
+    if hf_dir.is_dir():
+        os.environ["HF_HOME"] = str(hf_dir)
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")

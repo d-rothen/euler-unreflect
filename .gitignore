@@ -24,3 +24,5 @@ venv/
 
 # OS files
 .DS_Store
+
+run.sh
