@@ -100,15 +100,40 @@ def _build_parser() -> argparse.ArgumentParser:
 # -- prepare command ----------------------------------------------------
 
 def _read_backbone_name(config_path: Path) -> str:
-    """Extract the HuggingFace backbone model name from the pretrained config YAML."""
+    """Extract the HuggingFace backbone model name from the pretrained config YAML.
+
+    The YAML uses a wandb-style layout::
+
+        parameters:
+          MODEL:
+            value:
+              RGB_ENCODER:
+                ENCODER: "facebook/dinov3-vitl16-pretrain-lvd1689m"
+
+    ``load_and_process_config`` flattens ``parameters[k] → v["value"]``, then
+    ``create_model_from_config`` reads ``config.get("MODEL", {})["RGB_ENCODER"]["ENCODER"]``.
+    We replicate that navigation here on the raw YAML.
+    """
     import yaml
 
-    default = "facebook/dinov3-vits16-pretrain-lvd1689m"
+    # Must match the fallback in models.py DINOv3.__init__
+    default = "facebook/dinov3-vitb16-pretrain-lvd1689m"
     if not config_path.exists():
         return default
     with config_path.open("r") as f:
         cfg = yaml.safe_load(f) or {}
-    return cfg.get("RGB_ENCODER", {}).get("ENCODER", default)
+
+    # Navigate: parameters → MODEL → value → RGB_ENCODER → ENCODER
+    params = cfg.get("parameters", cfg)
+    model_entry = params.get("MODEL", {})
+    if isinstance(model_entry, dict) and "value" in model_entry:
+        model_cfg = model_entry["value"]
+    else:
+        model_cfg = model_entry
+    if not isinstance(model_cfg, dict):
+        return default
+    rgb_enc = model_cfg.get("RGB_ENCODER", {})
+    return rgb_enc.get("ENCODER", default) if isinstance(rgb_enc, dict) else default
 
 
 def cmd_prepare(args: argparse.Namespace) -> None:
@@ -184,12 +209,13 @@ def cmd_infer(args: argparse.Namespace) -> None:
             f"Run 'euler-unreflect prepare {cache_dir}' on a machine with internet access first."
         )
 
-    # Point HuggingFace at the local cache so the DINOv3 backbone loads offline,
-    # but only if the user hasn't already set HF_HOME themselves.
-    hf_dir = cache_dir / "huggingface"
-    if "HF_HOME" not in os.environ and hf_dir.is_dir():
-        os.environ["HF_HOME"] = str(hf_dir)
-    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
+    # Point HuggingFace hub cache at the prepared backbone so it resolves
+    # offline.  HF_HUB_CACHE is more targeted than HF_HOME — it tells
+    # huggingface_hub exactly where snapshot dirs live without overriding
+    # any wider HF_HOME the user may have set.
+    hf_hub_cache = cache_dir / "huggingface" / "hub"
+    if hf_hub_cache.is_dir():
+        os.environ.setdefault("HF_HUB_CACHE", str(hf_hub_cache))
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
