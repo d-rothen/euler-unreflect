@@ -213,9 +213,12 @@ def cmd_infer(args: argparse.Namespace) -> None:
     # offline.  HF_HUB_CACHE is more targeted than HF_HOME — it tells
     # huggingface_hub exactly where snapshot dirs live without overriding
     # any wider HF_HOME the user may have set.
+    # HF_HUB_OFFLINE prevents slow retry loops on offline cluster nodes.
+    # Both env vars must be set BEFORE huggingface_hub is first imported.
     hf_hub_cache = cache_dir / "huggingface" / "hub"
     if hf_hub_cache.is_dir():
         os.environ.setdefault("HF_HUB_CACHE", str(hf_hub_cache))
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")
 
     # Load the model once
     print(f"Loading model (device={args.device}) ...")
