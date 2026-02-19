@@ -172,6 +172,19 @@ def cmd_prepare(args: argparse.Namespace) -> None:
     print(f"Done. All assets ready at {root}")
 
 
+# -- helpers ------------------------------------------------------------
+
+def _uncollate(collated, i: int):
+    """Extract the *i*-th sample from a default_collate'd nested structure."""
+    if isinstance(collated, dict):
+        return {k: _uncollate(v, i) for k, v in collated.items()}
+    if isinstance(collated, (list, tuple)):
+        return collated[i]
+    if isinstance(collated, torch.Tensor):
+        return collated[i]
+    return collated
+
+
 # -- infer command ------------------------------------------------------
 
 def cmd_infer(args: argparse.Namespace) -> None:
@@ -288,9 +301,7 @@ def cmd_infer(args: argparse.Namespace) -> None:
 
         # Save each image via DatasetWriter (preserves hierarchy)
         for i in range(diffuse.shape[0]):
-            source_meta = {
-                k: metas["rgb"][k][i] for k in metas["rgb"]
-            }
+            source_meta = _uncollate(metas["rgb"], i)
             out_path = writer.get_path(
                 full_id=full_ids[i],
                 basename=f"{file_ids[i]}.png",
