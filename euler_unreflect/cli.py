@@ -235,8 +235,8 @@ def cmd_infer(args: argparse.Namespace) -> None:
         output_dir,
         name="diffuse",
         type="rgb",
-        euler_train={"used_as": "target", "modality_type": "rgb" },
-        properties={"range": [0,255] },
+        euler_train={"used_as": "target", "modality_type": "rgb"},
+        meta={"range": [0, 255]},
     )
 
     for batch in tqdm(loader, desc="Inference", unit="batch"):
