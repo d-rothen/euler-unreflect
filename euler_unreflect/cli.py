@@ -251,15 +251,25 @@ def cmd_infer(args: argparse.Namespace) -> None:
         file_ids = batch["id"]         # list of str
         metas = batch["meta"]
 
-        orig_size = rgb.shape[2:]      # (H, W)
+        orig_h, orig_w = rgb.shape[2:]  # (H, W)
 
-        # Resize to model's expected input size
-        if orig_size != target_size:
-            rgb_resized = torch.nn.functional.interpolate(
-                rgb, size=target_size, mode="bilinear", align_corners=False,
+        # Pad to square (preserving aspect ratio), then resize to model input
+        long_side = max(orig_h, orig_w)
+        pad_bottom = long_side - orig_h
+        pad_right = long_side - orig_w
+        if pad_bottom > 0 or pad_right > 0:
+            rgb_padded = torch.nn.functional.pad(
+                rgb, (0, pad_right, 0, pad_bottom), mode="reflect",
             )
         else:
-            rgb_resized = rgb
+            rgb_padded = rgb
+
+        if rgb_padded.shape[2:] != target_size:
+            rgb_resized = torch.nn.functional.interpolate(
+                rgb_padded, size=target_size, mode="bilinear", align_corners=False,
+            )
+        else:
+            rgb_resized = rgb_padded
 
         # Run inference with the pre-loaded model
         diffuse = inference(
@@ -267,13 +277,14 @@ def cmd_infer(args: argparse.Namespace) -> None:
             model=mdl,
             brightness_threshold=args.brightness_threshold,
             verbose=args.verbose,
-        )  # (B, 3, H, W) float32 in [0, 1]
+        )  # (B, 3, target_side, target_side) float32 in [0, 1]
 
-        # Resize back to original resolution
-        if diffuse.shape[2:] != orig_size:
+        # Resize back to padded square, then crop to original resolution
+        if diffuse.shape[2:] != (long_side, long_side):
             diffuse = torch.nn.functional.interpolate(
-                diffuse, size=orig_size, mode="bilinear", align_corners=False,
+                diffuse, size=(long_side, long_side), mode="bilinear", align_corners=False,
             )
+        diffuse = diffuse[:, :, :orig_h, :orig_w]
 
         # Save each image via DatasetWriter (preserves hierarchy)
         for i in range(diffuse.shape[0]):
