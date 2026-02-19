@@ -259,7 +259,7 @@ def cmd_infer(args: argparse.Namespace) -> None:
         pad_right = long_side - orig_w
         if pad_bottom > 0 or pad_right > 0:
             rgb_padded = torch.nn.functional.pad(
-                rgb, (0, pad_right, 0, pad_bottom), mode="reflect",
+                rgb, (0, pad_right, 0, pad_bottom), mode="replicate",
             )
         else:
             rgb_padded = rgb
