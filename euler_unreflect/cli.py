@@ -239,19 +239,41 @@ def cmd_infer(args: argparse.Namespace) -> None:
         meta={"range": [0, 255]},
     )
 
+    # Determine the model's expected input size for resizing
+    target_side = getattr(mdl, "image_size", None) or getattr(
+        mdl._model.dinov3.config, "image_size", 448
+    )
+    target_size = (target_side, target_side)
+
     for batch in tqdm(loader, desc="Inference", unit="batch"):
         rgb = batch["rgb"]             # (B, 3, H, W) float32 in [0, 1]
         full_ids = batch["full_id"]    # list of str
         file_ids = batch["id"]         # list of str
         metas = batch["meta"]
 
+        orig_size = rgb.shape[2:]      # (H, W)
+
+        # Resize to model's expected input size
+        if orig_size != target_size:
+            rgb_resized = torch.nn.functional.interpolate(
+                rgb, size=target_size, mode="bilinear", align_corners=False,
+            )
+        else:
+            rgb_resized = rgb
+
         # Run inference with the pre-loaded model
         diffuse = inference(
-            rgb,
+            rgb_resized,
             model=mdl,
             brightness_threshold=args.brightness_threshold,
             verbose=args.verbose,
         )  # (B, 3, H, W) float32 in [0, 1]
+
+        # Resize back to original resolution
+        if diffuse.shape[2:] != orig_size:
+            diffuse = torch.nn.functional.interpolate(
+                diffuse, size=orig_size, mode="bilinear", align_corners=False,
+            )
 
         # Save each image via DatasetWriter (preserves hierarchy)
         for i in range(diffuse.shape[0]):
